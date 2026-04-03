@@ -1,0 +1,559 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DealChord Admin</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --navy: #001f3f; --purple: #6366f1; --purple-light: #ede9fe;
+  --text: #0f172a; --text2: #64748b; --text3: #94a3b8;
+  --border: #e2e8f0; --bg: #f8fafc; --white: #fff;
+  --green: #10b981; --amber: #f59e0b; --red: #ef4444;
+}
+body { font-family: 'DM Sans', system-ui, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+/* ── Login ── */
+#login-screen {
+  min-height: 100vh; display: flex; align-items: center; justify-content: center;
+}
+.login-card {
+  background: var(--white); border-radius: 16px; padding: 40px 48px;
+  box-shadow: 0 8px 40px rgba(0,0,0,0.10); width: 100%; max-width: 420px;
+}
+.login-logo { font-size: 22px; font-weight: 800; color: var(--navy); margin-bottom: 4px; }
+.login-sub { font-size: 13px; color: var(--text2); margin-bottom: 28px; }
+.lbl { font-size: 12px; font-weight: 700; color: var(--text2); margin-bottom: 5px; display: block; }
+.inp {
+  width: 100%; height: 40px; border: 1.5px solid var(--border); border-radius: 8px;
+  padding: 0 12px; font-size: 13px; font-family: inherit; outline: none; margin-bottom: 14px;
+  transition: border-color .15s;
+}
+.inp:focus { border-color: var(--purple); }
+.btn-primary {
+  width: 100%; height: 42px; background: var(--navy); color: #fff; border: none;
+  border-radius: 9px; font-size: 14px; font-weight: 700; cursor: pointer; margin-top: 4px;
+}
+.btn-primary:hover { background: #0a3a6b; }
+#login-err { font-size: 12px; color: var(--red); margin-top: 10px; min-height: 18px; }
+
+/* ── Layout ── */
+#app { display: none; min-height: 100vh; }
+.topbar {
+  background: var(--navy); color: #fff; height: 52px;
+  display: flex; align-items: center; padding: 0 24px; gap: 16px;
+  position: sticky; top: 0; z-index: 100;
+}
+.topbar-logo { font-size: 16px; font-weight: 800; }
+.topbar-badge {
+  font-size: 10px; font-weight: 700; background: #dc2626; color: #fff;
+  padding: 2px 8px; border-radius: 10px;
+}
+.topbar-right { margin-left: auto; display: flex; align-items: center; gap: 12px; }
+.topbar-org { font-size: 12px; color: rgba(255,255,255,0.6); }
+.btn-sm {
+  height: 28px; padding: 0 12px; border-radius: 7px; font-size: 11.5px;
+  font-weight: 600; cursor: pointer; border: 1.5px solid rgba(255,255,255,0.3);
+  background: transparent; color: #fff;
+}
+.btn-sm:hover { background: rgba(255,255,255,0.1); }
+
+.main { max-width: 1100px; margin: 0 auto; padding: 28px 24px; }
+
+/* ── Period selector ── */
+.toolbar {
+  display: flex; align-items: center; gap: 10px; margin-bottom: 24px; flex-wrap: wrap;
+}
+.toolbar-title { font-size: 20px; font-weight: 800; color: var(--text); flex: 1; }
+select.period-sel {
+  height: 34px; padding: 0 12px; border: 1.5px solid var(--border); border-radius: 8px;
+  font-size: 13px; background: var(--white); cursor: pointer; font-family: inherit;
+}
+.btn-export {
+  height: 34px; padding: 0 14px; border: 1.5px solid #bbf7d0; border-radius: 8px;
+  background: var(--white); font-size: 12px; font-weight: 600; color: #15803d; cursor: pointer;
+}
+.btn-refresh {
+  height: 34px; padding: 0 14px; border: 1.5px solid var(--border); border-radius: 8px;
+  background: var(--white); font-size: 12px; font-weight: 600; color: var(--text2); cursor: pointer;
+}
+
+/* ── Cards ── */
+.kpi-row { display: grid; grid-template-columns: repeat(4,1fr); gap: 14px; margin-bottom: 24px; }
+.kpi-card {
+  background: var(--white); border-radius: 12px; padding: 18px 20px;
+  border: 1.5px solid var(--border);
+}
+.kpi-label { font-size: 11px; font-weight: 700; color: var(--text3); text-transform: uppercase; letter-spacing: .5px; margin-bottom: 8px; }
+.kpi-value { font-size: 28px; font-weight: 800; color: var(--text); line-height: 1; }
+.kpi-sub { font-size: 12px; color: var(--text2); margin-top: 4px; }
+.kpi-card.accent { border-color: #c7d2fe; background: #eef2ff; }
+.kpi-card.accent .kpi-value { color: var(--purple); }
+
+.card {
+  background: var(--white); border-radius: 12px; padding: 20px 24px;
+  border: 1.5px solid var(--border); margin-bottom: 16px;
+}
+.card-title { font-size: 14px; font-weight: 700; color: var(--text); margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+
+/* ── Table ── */
+.tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
+.tbl th {
+  text-align: left; padding: 8px 12px; font-size: 11px; font-weight: 700;
+  color: var(--text3); text-transform: uppercase; letter-spacing: .4px;
+  border-bottom: 1.5px solid var(--border); white-space: nowrap;
+}
+.tbl td { padding: 10px 12px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
+.tbl tr:last-child td { border-bottom: none; }
+.tbl tr:hover td { background: #f8fafc; }
+.rank-num { font-size: 11px; font-weight: 700; color: var(--text3); }
+.org-name { font-weight: 600; color: var(--text); max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tok-val { font-weight: 600; }
+.cost-val { font-weight: 700; color: var(--purple); }
+.bar-wrap { width: 120px; }
+.bar-bg { background: #f1f5f9; border-radius: 999px; height: 6px; overflow: hidden; }
+.bar-fill { height: 100%; border-radius: 999px; background: var(--purple); opacity: .75; }
+.badge {
+  display: inline-block; font-size: 10.5px; font-weight: 700;
+  padding: 2px 8px; border-radius: 10px;
+}
+.badge-green { background: #d1fae5; color: #065f46; }
+.badge-amber { background: #fef3c7; color: #92400e; }
+.badge-red   { background: #fee2e2; color: #991b1b; }
+
+/* ── Mini bar chart ── */
+.day-chart { display: flex; align-items: flex-end; gap: 3px; height: 64px; }
+.day-bar { flex: 1; border-radius: 3px 3px 0 0; min-height: 3px; background: #c7d2fe; }
+.day-bar.today { background: var(--purple); }
+
+/* ── Feature table ── */
+.feat-row { display: flex; align-items: center; gap: 10px; margin-bottom: 9px; }
+.feat-label { font-size: 12px; color: var(--text); width: 140px; flex-shrink: 0; }
+.feat-bar-bg { flex: 1; background: #f1f5f9; border-radius: 999px; height: 7px; overflow: hidden; }
+.feat-bar-fill { height: 100%; border-radius: 999px; background: var(--purple); opacity: .7; }
+.feat-tok { font-size: 12px; color: var(--text2); width: 60px; text-align: right; flex-shrink: 0; }
+.feat-cost { font-size: 12px; color: var(--purple); font-weight: 700; width: 70px; text-align: right; flex-shrink: 0; }
+
+/* ── Loader ── */
+.loader { text-align: center; padding: 60px 0; color: var(--text3); font-size: 14px; }
+.spinner { display: inline-block; width: 24px; height: 24px; border: 3px solid #e2e8f0; border-top-color: var(--purple); border-radius: 50%; animation: spin .7s linear infinite; margin-bottom: 12px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Limit modal ── */
+.modal-bg {
+  display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4);
+  z-index: 200; align-items: center; justify-content: center;
+}
+.modal-bg.open { display: flex; }
+.modal { background: var(--white); border-radius: 14px; padding: 28px 32px; width: 400px; max-width: 95vw; }
+.modal-title { font-size: 16px; font-weight: 800; margin-bottom: 4px; }
+.modal-sub { font-size: 12.5px; color: var(--text2); margin-bottom: 20px; }
+.modal-row { display: flex; gap: 10px; margin-top: 16px; justify-content: flex-end; }
+.btn-cancel { height: 36px; padding: 0 16px; border: 1.5px solid var(--border); border-radius: 8px; background: var(--white); font-size: 13px; cursor: pointer; }
+.btn-save { height: 36px; padding: 0 18px; background: var(--navy); color: #fff; border: none; border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer; }
+
+@media (max-width: 700px) {
+  .kpi-row { grid-template-columns: repeat(2,1fr); }
+  .bar-wrap { display: none; }
+}
+</style>
+</head>
+<body>
+
+<!-- ========== LOGIN ========== -->
+<div id="login-screen">
+  <div class="login-card">
+    <div class="login-logo">DealChord</div>
+    <div class="login-sub">管理者ダッシュボード</div>
+    <label class="lbl">Supabase URL</label>
+    <input class="inp" id="sb-url" type="text" placeholder="https://xxxxxxxxxx.supabase.co" autocomplete="off">
+    <label class="lbl">Service Role Key <span style="font-size:10px;color:#f59e0b;font-weight:400;">（RLSをバイパス）</span></label>
+    <input class="inp" id="sb-srkey" type="password" placeholder="eyJhbGciOiJIUzI1NiIs..." autocomplete="off">
+    <label class="lbl">管理者パスワード</label>
+    <input class="inp" id="admin-pw" type="password" placeholder="設定したパスワード" autocomplete="off">
+    <button class="btn-primary" onclick="doLogin()">ログイン →</button>
+    <div id="login-err"></div>
+  </div>
+</div>
+
+<!-- ========== APP ========== -->
+<div id="app">
+  <div class="topbar">
+    <div class="topbar-logo">DealChord</div>
+    <div class="topbar-badge">ADMIN</div>
+    <div class="topbar-right">
+      <span class="topbar-org" id="topbar-info"></span>
+      <button class="btn-sm" onclick="doLogout()">ログアウト</button>
+    </div>
+  </div>
+
+  <div class="main">
+    <div class="toolbar">
+      <div class="toolbar-title">📊 API利用状況</div>
+      <select class="period-sel" id="period-sel" onchange="loadData()">
+        <option value="7">過去7日</option>
+        <option value="30" selected>過去30日</option>
+        <option value="90">過去90日</option>
+        <option value="365">過去1年</option>
+      </select>
+      <button class="btn-refresh" onclick="loadData()">↻ 更新</button>
+      <button class="btn-export" onclick="exportCsv()">📥 CSV</button>
+    </div>
+
+    <div id="dash-body">
+      <div class="loader"><div class="spinner"></div><br>読み込み中...</div>
+    </div>
+  </div>
+</div>
+
+<!-- ========== Limit Modal ========== -->
+<div class="modal-bg" id="limit-modal">
+  <div class="modal">
+    <div class="modal-title">月次上限を設定</div>
+    <div class="modal-sub" id="limit-modal-org"></div>
+    <label class="lbl">上限トークン数 / 月</label>
+    <input class="inp" id="limit-inp" type="number" placeholder="例: 5000000">
+    <div class="modal-row">
+      <button class="btn-cancel" onclick="closeLimitModal()">キャンセル</button>
+      <button class="btn-save" onclick="saveLimit()">保存</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── 定数 ──
+var ADMIN_PW_KEY = 'dc_admin_pw_hash';
+var SB_URL_KEY   = 'dc_admin_sb_url';
+var SB_KEY_KEY   = 'dc_admin_sb_key';
+var LIMIT_DEFAULT = 5000000;
+
+var MODEL_PRICE = {
+  'claude-sonnet-4-20250514':  { in: 0.00045, out: 0.00225 },
+  'claude-opus-4-20250514':    { in: 0.00225, out: 0.01125 },
+  'claude-haiku-4-5-20251001': { in: 0.00012, out: 0.0006  },
+  'default':                   { in: 0.00045, out: 0.00225 }
+};
+var FEATURE_LABELS = {
+  im_extract:'IM構造化抽出', ai_analyst:'AIアナリスト', pmi_gen:'PMI生成',
+  valuation:'バリュエーション', loi:'LOI生成', qac:'QA消込',
+  scoring:'スコアリング', pl_extract:'PL抽出', other:'その他'
+};
+
+var _sb = null;
+var _rows = [];
+var _orgLimits = {};
+var _orgNames = {}; // UUID → 組織名
+var _limitTarget = null;
+
+// ── ユーティリティ ──
+function fmtTok(n) {
+  if (n >= 1000000) return (n/1000000).toFixed(2) + 'M';
+  if (n >= 1000)    return (n/1000).toFixed(1) + 'K';
+  return String(n);
+}
+function fmtCost(n) {
+  return '¥' + Math.round(n).toLocaleString();
+}
+function fmtDate(iso) {
+  var d = new Date(iso);
+  return (d.getMonth()+1) + '/' + d.getDate();
+}
+
+// ── 認証 ──
+async function doLogin() {
+  var url  = document.getElementById('sb-url').value.trim();
+  var key  = document.getElementById('sb-srkey').value.trim();
+  var pw   = document.getElementById('admin-pw').value.trim();
+  var err  = document.getElementById('login-err');
+  err.textContent = '';
+
+  if (!url || !key) { err.textContent = 'Supabase URLとService Role Keyを入力してください'; return; }
+
+  // パスワード照合（ローカルHash or 初回登録）
+  var stored = localStorage.getItem(ADMIN_PW_KEY);
+  if (!stored) {
+    if (pw.length < 8) { err.textContent = '初回: パスワードを8文字以上で設定してください（次回から使用）'; return; }
+    // 簡易ハッシュ（btoa+salt）
+    localStorage.setItem(ADMIN_PW_KEY, btoa('dc_admin_' + pw));
+    stored = localStorage.getItem(ADMIN_PW_KEY);
+  }
+  if (btoa('dc_admin_' + pw) !== stored) { err.textContent = 'パスワードが違います'; return; }
+
+  err.textContent = '接続中...';
+  try {
+    _sb = window.supabase.createClient(url, key);
+    // 接続テスト
+    var test = await _sb.from('api_usage').select('id').limit(1);
+    if (test.error && test.error.code !== 'PGRST116') throw new Error(test.error.message);
+    localStorage.setItem(SB_URL_KEY, url);
+    localStorage.setItem(SB_KEY_KEY, key);
+    document.getElementById('login-screen').style.display = 'none';
+    document.getElementById('app').style.display = 'block';
+    document.getElementById('topbar-info').textContent = url.replace('https://','').split('.')[0];
+    loadData();
+  } catch(e) {
+    err.textContent = '接続失敗: ' + e.message;
+    _sb = null;
+  }
+}
+
+function doLogout() {
+  _sb = null; _rows = [];
+  document.getElementById('app').style.display = 'none';
+  document.getElementById('login-screen').style.display = 'flex';
+  document.getElementById('login-err').textContent = '';
+}
+
+// Supabase接続情報デフォルト（URL固定）
+var _DC_ADMIN_SB_URL = 'https://paaenoezrlzxsuzznzak.supabase.co';
+
+// 前回の接続情報で自動復元（URLはデフォルト値を使用）
+window.addEventListener('DOMContentLoaded', function() {
+  var url = localStorage.getItem(SB_URL_KEY) || _DC_ADMIN_SB_URL;
+  var key = localStorage.getItem(SB_KEY_KEY) || '';
+  document.getElementById('sb-url').value = url;
+  if (key) document.getElementById('sb-srkey').value = key;
+});
+
+// ── データ取得 ──
+async function loadData() {
+  if (!_sb) return;
+  document.getElementById('dash-body').innerHTML = '<div class="loader"><div class="spinner"></div><br>データを取得中...</div>';
+  var days = parseInt(document.getElementById('period-sel').value);
+  var since = new Date(Date.now() - days * 86400000).toISOString();
+
+  try {
+    var r = await _sb.from('api_usage')
+      .select('id,created_at,org_id,user_id,model,feature,input_tokens,output_tokens,total_tokens,est_cost_jpy,deal_id')
+      .gte('created_at', since)
+      .order('created_at', { ascending: false })
+      .limit(50000);
+    if (r.error) throw new Error(r.error.message);
+    _rows = r.data || [];
+
+    // 組織上限を取得（テーブルがあれば）
+    try {
+      var lr = await _sb.from('org_usage_limits').select('org_id,token_limit');
+      if (!lr.error) {
+        _orgLimits = {};
+        (lr.data||[]).forEach(function(l){ _orgLimits[l.org_id] = l.token_limit; });
+      }
+    } catch(e) {}
+    // 組織名を取得
+    try {
+      var nr = await _sb.from('organizations').select('id,name');
+      if (!nr.error) {
+        _orgNames = {};
+        (nr.data||[]).forEach(function(o){ _orgNames[o.id] = o.name || o.id.slice(0,8); });
+      }
+    } catch(e) {}
+
+    renderDash(_rows, days);
+  } catch(e) {
+    document.getElementById('dash-body').innerHTML =
+      '<div class="loader" style="color:#ef4444;">取得失敗: ' + e.message + '</div>';
+  }
+}
+
+// ── 描画 ──
+function orgName(id) {
+  return _orgNames[id] || id.slice(0,8) + '...';
+}
+
+function renderDash(rows, days) {
+  // ── 全体集計 ──
+  var totalTok  = rows.reduce(function(s,r){ return s+(r.total_tokens||0); },0);
+  var totalCost = rows.reduce(function(s,r){ return s+(r.est_cost_jpy||0); },0);
+  var totalOrgs = [...new Set(rows.map(function(r){ return r.org_id; }).filter(Boolean))].length;
+  var totalCalls = rows.length;
+
+  // ── 機能別 ──
+  var byFeature = {};
+  rows.forEach(function(r){
+    var f = r.feature||'other';
+    if (!byFeature[f]) byFeature[f] = { tokens:0, cost:0, calls:0 };
+    byFeature[f].tokens += r.total_tokens||0;
+    byFeature[f].cost   += r.est_cost_jpy||0;
+    byFeature[f].calls  += 1;
+  });
+
+  // ── 組織別 ──
+  var byOrg = {};
+  rows.forEach(function(r){
+    var o = r.org_id||'(不明)';
+    if (!byOrg[o]) byOrg[o] = { tokens:0, cost:0, calls:0, users: new Set() };
+    byOrg[o].tokens += r.total_tokens||0;
+    byOrg[o].cost   += r.est_cost_jpy||0;
+    byOrg[o].calls  += 1;
+    if (r.user_id) byOrg[o].users.add(r.user_id);
+  });
+  var sortedOrgs = Object.keys(byOrg).sort(function(a,b){ return byOrg[b].tokens - byOrg[a].tokens; });
+  var orgMax = sortedOrgs.length ? byOrg[sortedOrgs[0]].tokens : 1;
+
+  // ── 日別 ──
+  var byDay = {};
+  rows.forEach(function(r){
+    var d = r.created_at.slice(0,10);
+    byDay[d] = (byDay[d]||0) + (r.total_tokens||0);
+  });
+  var plotDays = Math.min(days, 30);
+  var dayKeys = [];
+  for (var di = plotDays-1; di >= 0; di--) {
+    dayKeys.push(new Date(Date.now()-di*86400000).toISOString().slice(0,10));
+  }
+  var dayMax = Math.max.apply(null, dayKeys.map(function(d){ return byDay[d]||0; }).concat([1]));
+  var todayStr = new Date().toISOString().slice(0,10);
+
+  // ── 機能ソート ──
+  var sortedFeat = Object.keys(byFeature).sort(function(a,b){ return byFeature[b].tokens - byFeature[a].tokens; });
+  var featMax = sortedFeat.length ? byFeature[sortedFeat[0]].tokens : 1;
+
+  // ── HTML ──
+  var h = '';
+
+  // KPIカード
+  h += '<div class="kpi-row">';
+  h += kpiCard('総トークン消費', fmtTok(totalTok), '過去'+days+'日', true);
+  h += kpiCard('推定コスト', fmtCost(totalCost), '¥/月 換算: ' + fmtCost(totalCost * 30 / days), true);
+  h += kpiCard('アクティブ組織', totalOrgs + '社', '');
+  h += kpiCard('API呼び出し回数', totalCalls.toLocaleString() + '回', '');
+  h += '</div>';
+
+  // 日別グラフ
+  h += '<div class="card">';
+  h += '<div class="card-title">📈 日別トークン消費トレンド</div>';
+  h += '<div class="day-chart">';
+  dayKeys.forEach(function(d){
+    var val = byDay[d]||0;
+    var hpx = dayMax > 0 ? Math.max(3, Math.round(val/dayMax*58)) : 3;
+    var cls = d === todayStr ? 'day-bar today' : 'day-bar';
+    h += '<div class="'+cls+'" style="height:'+hpx+'px;" title="'+d+': '+fmtTok(val)+'"></div>';
+  });
+  h += '</div>';
+  h += '<div style="display:flex;justify-content:space-between;font-size:10.5px;color:var(--text3);margin-top:5px;">';
+  h += '<span>'+dayKeys[0].slice(5)+'</span><span>今日</span></div>';
+  h += '</div>';
+
+  // 機能別
+  h += '<div class="card">';
+  h += '<div class="card-title">⚡ 機能別消費</div>';
+  sortedFeat.forEach(function(f){
+    var v = byFeature[f];
+    var pct = Math.round(v.tokens/featMax*100);
+    h += '<div class="feat-row">';
+    h += '<div class="feat-label">'+(FEATURE_LABELS[f]||f)+'</div>';
+    h += '<div class="feat-bar-bg"><div class="feat-bar-fill" style="width:'+pct+'%"></div></div>';
+    h += '<div class="feat-tok">'+fmtTok(v.tokens)+'</div>';
+    h += '<div class="feat-cost">'+fmtCost(v.cost)+'</div>';
+    h += '</div>';
+  });
+  if (!sortedFeat.length) h += '<div style="color:var(--text3);font-size:13px;">データなし</div>';
+  h += '</div>';
+
+  // 組織別ランキング
+  h += '<div class="card">';
+  h += '<div class="card-title">🏢 組織別ランキング <span style="font-size:11px;font-weight:400;color:var(--text3);">（クリックで上限設定）</span></div>';
+  h += '<table class="tbl">';
+  h += '<thead><tr><th>#</th><th>組織ID</th><th>トークン</th><th>推定コスト</th><th>呼び出し</th><th>ユーザー</th><th>使用率</th><th>ステータス</th><th></th></tr></thead>';
+  h += '<tbody>';
+  sortedOrgs.forEach(function(o, i){
+    var v = byOrg[o];
+    var limit = _orgLimits[o] || LIMIT_DEFAULT;
+    var pct = Math.round(v.tokens / limit * 100);
+    var barW = Math.min(100, pct);
+    var status = pct >= 90 ? '<span class="badge badge-red">危険</span>'
+               : pct >= 70 ? '<span class="badge badge-amber">注意</span>'
+               : '<span class="badge badge-green">正常</span>';
+    h += '<tr onclick="openLimitModal(\''+o+'\')" style="cursor:pointer;">';
+    h += '<td class="rank-num">'+(i+1)+'</td>';
+    h += '<td><div class="org-name" title="'+o+'">'+orgName(o)+'</div></td>';
+    h += '<td class="tok-val">'+fmtTok(v.tokens)+'</td>';
+    h += '<td class="cost-val">'+fmtCost(v.cost)+'</td>';
+    h += '<td>'+v.calls.toLocaleString()+'</td>';
+    h += '<td>'+v.users.size+'人</td>';
+    h += '<td><div class="bar-wrap"><div class="bar-bg"><div class="bar-fill" style="width:'+barW+'%"></div></div><div style="font-size:10px;color:var(--text3);margin-top:2px;">'+pct+'% / '+fmtTok(limit)+'</div></div></td>';
+    h += '<td>'+status+'</td>';
+    h += '<td style="font-size:11px;color:var(--text3);">上限設定</td>';
+    h += '</tr>';
+  });
+  if (!sortedOrgs.length) h += '<tr><td colspan="9" style="padding:24px;text-align:center;color:var(--text3);">データなし</td></tr>';
+  h += '</tbody></table>';
+  h += '</div>';
+
+  // 直近20件ログ
+  h += '<div class="card">';
+  h += '<div class="card-title">📋 直近のAPI呼び出し</div>';
+  h += '<table class="tbl">';
+  h += '<thead><tr><th>日時</th><th>組織</th><th>機能</th><th>モデル</th><th>入力</th><th>出力</th><th>コスト</th></tr></thead>';
+  h += '<tbody>';
+  rows.slice(0,20).forEach(function(r){
+    h += '<tr>';
+    h += '<td style="color:var(--text2);white-space:nowrap;">'+fmtDate(r.created_at)+'</td>';
+    h += '<td style="font-size:11.5px;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+(r.org_id ? orgName(r.org_id) : '-')+'</td>';
+    h += '<td><span class="badge badge-green" style="font-size:10px;">'+(FEATURE_LABELS[r.feature||'other']||r.feature||'-')+'</span></td>';
+    h += '<td style="font-size:11px;color:var(--text2);">'+(r.model||'').replace('claude-','').replace('-20250514','')+'</td>';
+    h += '<td>'+fmtTok(r.input_tokens||0)+'</td>';
+    h += '<td>'+fmtTok(r.output_tokens||0)+'</td>';
+    h += '<td class="cost-val" style="font-size:12px;">'+fmtCost(r.est_cost_jpy||0)+'</td>';
+    h += '</tr>';
+  });
+  if (!rows.length) h += '<tr><td colspan="7" style="padding:24px;text-align:center;color:var(--text3);">データなし</td></tr>';
+  h += '</tbody></table>';
+  h += '</div>';
+
+  document.getElementById('dash-body').innerHTML = h;
+}
+
+function kpiCard(label, value, sub, accent) {
+  return '<div class="kpi-card'+(accent?' accent':'')+'"><div class="kpi-label">'+label+'</div>'
+       + '<div class="kpi-value">'+value+'</div>'
+       + (sub ? '<div class="kpi-sub">'+sub+'</div>' : '')
+       + '</div>';
+}
+
+// ── 上限モーダル ──
+function openLimitModal(orgId) {
+  _limitTarget = orgId;
+  document.getElementById('limit-modal-org').textContent = '組織: ' + orgName(orgId);
+  document.getElementById('limit-inp').value = _orgLimits[orgId] || LIMIT_DEFAULT;
+  document.getElementById('limit-modal').classList.add('open');
+}
+function closeLimitModal() {
+  document.getElementById('limit-modal').classList.remove('open');
+  _limitTarget = null;
+}
+async function saveLimit() {
+  if (!_limitTarget || !_sb) return;
+  var val = parseInt(document.getElementById('limit-inp').value);
+  if (isNaN(val) || val <= 0) { alert('有効な数値を入力してください'); return; }
+  try {
+    await _sb.from('org_usage_limits').upsert(
+      { org_id: _limitTarget, token_limit: val, updated_at: new Date().toISOString() },
+      { onConflict: 'org_id' }
+    );
+    _orgLimits[_limitTarget] = val;
+    closeLimitModal();
+    loadData();
+  } catch(e) { alert('保存失敗: ' + e.message); }
+}
+
+// ── CSV エクスポート ──
+function exportCsv() {
+  if (!_rows.length) { alert('データがありません'); return; }
+  var header = ['created_at','org_id','user_id','feature','model','input_tokens','output_tokens','total_tokens','est_cost_jpy','deal_id'];
+  var csv = '\uFEFF' + header.join(',') + '\n' + _rows.map(function(r){
+    return header.map(function(k){ return '"'+(r[k]!=null?r[k]:'')+'"'; }).join(',');
+  }).join('\n');
+  var blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url;
+  a.download = 'dealchord_usage_' + new Date().toISOString().slice(0,10) + '.csv';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+</script>
+</body>
+</html>

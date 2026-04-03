@@ -344,9 +344,13 @@ async function loadData() {
     // 組織名を取得
     try {
       var nr = await _sb.from('organizations').select('id,name');
-      if (!nr.error) {
+      console.log('[Admin] organizations:', nr);
+      if (!nr.error && nr.data) {
         _orgNames = {};
-        (nr.data||[]).forEach(function(o){ _orgNames[o.id] = o.name || o.id.slice(0,8); });
+        (nr.data||[]).forEach(function(o){ _orgNames[o.id] = o.name || o.id.slice(0,8) + '...'; });
+        console.log('[Admin] 組織名マップ:', _orgNames);
+      } else {
+        console.warn('[Admin] 組織名取得失敗:', nr.error);
       }
     } catch(e) {}
 
@@ -359,7 +363,14 @@ async function loadData() {
 
 // ── 描画 ──
 function orgName(id) {
-  return _orgNames[id] || id.slice(0,8) + '...';
+  var name = _orgNames[id] || '(不明)';
+  return name;
+}
+function orgLabel(id) {
+  var name = _orgNames[id] || '(不明)';
+  var short = id ? id.slice(0,8) + '...' : '';
+  return '<span style="font-weight:600;">' + name + '</span>'
+       + '<br><span style="font-size:10px;color:#94a3b8;font-family:monospace;">' + short + '</span>';
 }
 
 function renderDash(rows, days) {
@@ -456,7 +467,7 @@ function renderDash(rows, days) {
   h += '<div class="card">';
   h += '<div class="card-title">🏢 組織別ランキング <span style="font-size:11px;font-weight:400;color:var(--text3);">（クリックで上限設定）</span></div>';
   h += '<table class="tbl">';
-  h += '<thead><tr><th>#</th><th>組織ID</th><th>トークン</th><th>推定コスト</th><th>呼び出し</th><th>ユーザー</th><th>使用率</th><th>ステータス</th><th></th></tr></thead>';
+  h += '<thead><tr><th>#</th><th>組織名</th><th>トークン</th><th>推定コスト</th><th>呼び出し</th><th>ユーザー</th><th>使用率</th><th>ステータス</th><th></th></tr></thead>';
   h += '<tbody>';
   sortedOrgs.forEach(function(o, i){
     var v = byOrg[o];
@@ -468,7 +479,7 @@ function renderDash(rows, days) {
                : '<span class="badge badge-green">正常</span>';
     h += '<tr onclick="openLimitModal(\''+o+'\')" style="cursor:pointer;">';
     h += '<td class="rank-num">'+(i+1)+'</td>';
-    h += '<td><div class="org-name" title="'+o+'">'+orgName(o)+'</div></td>';
+    h += '<td><div class="org-name" title="'+o+'">'+orgLabel(o)+'</div></td>';
     h += '<td class="tok-val">'+fmtTok(v.tokens)+'</td>';
     h += '<td class="cost-val">'+fmtCost(v.cost)+'</td>';
     h += '<td>'+v.calls.toLocaleString()+'</td>';
@@ -491,7 +502,7 @@ function renderDash(rows, days) {
   rows.slice(0,20).forEach(function(r){
     h += '<tr>';
     h += '<td style="color:var(--text2);white-space:nowrap;">'+fmtDate(r.created_at)+'</td>';
-    h += '<td style="font-size:11.5px;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+(r.org_id ? orgName(r.org_id) : '-')+'</td>';
+    h += '<td style="font-size:11.5px;max-width:140px;">'+(r.org_id ? orgLabel(r.org_id) : '-')+'</td>';
     h += '<td><span class="badge badge-green" style="font-size:10px;">'+(FEATURE_LABELS[r.feature||'other']||r.feature||'-')+'</span></td>';
     h += '<td style="font-size:11px;color:var(--text2);">'+(r.model||'').replace('claude-','').replace('-20250514','')+'</td>';
     h += '<td>'+fmtTok(r.input_tokens||0)+'</td>';
